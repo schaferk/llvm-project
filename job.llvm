@@ -1,0 +1,87 @@
+#!/bin/bash
+#SBATCH --account=NAVOS90675P3D
+#SBATCH --partition=general
+#SBATCH --qos=internal3d
+#SBATCH --constraint=standard
+#SBATCH --job-name="llvm"
+#SBATCH --output=log.llvm
+#SBATCH --time=03:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=24
+#SBATCH --cpus-per-task=1
+
+printf "DATE_STRT     : $(date)\n\n"
+
+strt=$(date +%s)
+
+. /usr/share/Modules/init/bash
+
+module purge
+module load slurm
+module load python/3.11/3.11
+module list
+
+cd $SLURM_SUBMIT_DIR
+
+cd ../
+user_stem=$PWD
+
+BUILD_DIR=$WORKDIR/tmp/llvm
+mkdir -p $BUILD_DIR
+if [ -d "$BUILD_DIR" ]; then
+    echo "Directory BUILD_DIR $BUILD_DIR exists"
+else
+    echo "Directory BUILD_DIR does not exist"
+    exit
+fi
+cd $BUILD_DIR
+ls $BUILD_DIR
+
+if [ ! -f CMakeCache.txt ]; then
+  echo "Phase 1: LLVM Configure"
+
+  cmake -G "Unix Makefiles" \
+  -DLLVM_ENABLE_PROJECTS="clang;flang" \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_INSTALL_PREFIX=$user_stem/llvm $BUILD_DIR \
+  -DLLVM_TARGETS_TO_BUILD="X86" \
+  $user_stem/llvm-project/llvm
+fi
+
+echo "Phase 2: LLVM Build"
+#cmake --build .
+#cmake --build . -j24
+#more portable
+cmake --build . -- -j24
+
+exit
+
+#cmake -DLLVM_TARGETS_TO_BUILD="X86;WebAssembly;AMDGPU" ...
+
+NO_SKIP=true
+if [ $NO_SKIP = "true" ]; then
+echo "Section.1"
+section_strt=$(date +%s)
+
+
+section_fnsh=$(date +%s)
+Elapsed=$((section_fnsh - section_strt))
+echo "Section.1 completed in $Elapsed seconds"
+fi
+
+echo "Section.2"
+section_strt=$(date +%s)
+
+cmake --build . -j24
+
+section_fnsh=$(date +%s)
+Elapsed=$((section_fnsh - section_strt))
+echo "Section.2 completed in $Elapsed seconds"
+
+fnsh=$(date +%s)
+total_time=$((fnsh - strt))
+
+printf "Elapsed %02d:%02d:%02d\n\n" $((total_time / 3600)) $((total_time / 60 % 60)) $((total_time % 60))
+
+printf "DATE_FNSH     : $(date)\n\n"
+

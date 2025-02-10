@@ -1,0 +1,109 @@
+#!/bin/bash
+#SBATCH --account=NAVOS90675P3D
+#SBATCH --partition=general
+#SBATCH --qos=internal3d
+#SBATCH --constraint=standard
+#SBATCH --job-name="hello"
+#SBATCH --output=log.hello
+#SBATCH --time=00:05:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=24
+#SBATCH --cpus-per-task=1
+
+printf "DATE_STRT     : $(date)\n\n"
+
+strt=$(date +%s)
+
+. /usr/share/Modules/init/bash
+
+module purge
+module load slurm
+module load python/3.11/3.11
+module list
+
+directory_exists () {
+if [ ! -d "$1" ]; then
+  echo "Directory $1 does not exist"
+  exit
+fi
+}
+
+file_exists () {
+if [ ! -f "$1" ]; then
+  echo "File $1 not found!"
+  exit
+fi
+}
+
+LLVM_PREFIX=$WORKDIR/tmp/llvm
+LLVM_BIN=$LLVM_PREFIX/bin
+LLVM_INC=$LLVM_PREFIX/include
+LLVM_LIB=$LLVM_PREFIX/lib
+LLVM_MOD=$LLVM_PREFIX/mod
+#LLVM_BLD=$(PREFIX)/build
+
+DFM_PREFIX=$HOME/models/src
+DFM_VERSION=v2021.03-2.0.3-llvm
+DFM_BIN=$DFM_PREFIX/$DFM_VERSION/bin
+DFM_LIB=$DFM_PREFIX/$DFM_VERSION/lib
+
+CC=clang
+CXX=clang
+FC=flang
+F90=flang
+
+echo
+echo check LLVM_BIN            ; directory_exists $LLVM_BIN
+echo check LLVM_LIB            ; directory_exists $LLVM_LIB
+echo
+echo check LLVM_BIN/clang      ; file_exists      $LLVM_BIN/clang
+echo check LLVM_BIN/flang      ; file_exists      $LLVM_BIN/flang
+
+export PATH=$DFM_BIN:$LLVM_BIN:$PATH
+export LD_LIBRARY_PATH=$DFM_LIB:$LLVM_LIB:$LD_LIBRARY_PATH
+
+echo
+printf "clang: %s\n" "$(which clang)"
+printf "flang: %s\n" "$(which flang)"
+
+# Print Clang version
+echo "Clang version:"
+clang --version
+
+# Print Clang target information
+echo -e "\nClang target information:"
+clang -v 2>&1 | grep "Target:"
+
+# Print Clang supported CPU features
+echo -e "\nSupported CPU features:"
+clang -march=native -Q --help=target | grep "Enabled"
+
+# Print Clang default include paths
+echo -e "\nDefault include paths:"
+echo | clang -E -Wp,-v - 2>&1 | grep "^ /"
+
+printf "mpicc: %s\n" "$(which mpicc)"
+
+# Print mpicc version
+echo "mpicc version:"
+#$HOME/models/src/v2021.03-2.0.3-llvm/bin/mpicc --version
+mpicc --version
+printf "mpicc: %s\n" "$(which mpicc)"
+echo "mpif90 version:"
+#$HOME/models/src/v2021.03-2.0.3-llvm/bin/mpif90 --version
+mpif90 --version
+printf "mpif90: %s\n" "$(which mpif90)"
+
+cd $SLURM_SUBMIT_DIR
+
+make F90=flang -f mk.hello
+
+./hello.x
+
+fnsh=$(date +%s)
+total_time=$((fnsh - strt))
+
+printf "Elapsed %02d:%02d:%02d\n\n" $((total_time / 3600)) $((total_time / 60 % 60)) $((total_time % 60))
+
+printf "DATE_FNSH     : $(date)\n\n"
+
